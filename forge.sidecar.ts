@@ -55,6 +55,7 @@ function addWebpackDefine(
 
 function build(
 	sourcesDir: string,
+	platform: string,
 	buildForArchs: string,
 	binDir: string,
 	binName: string,
@@ -74,7 +75,17 @@ function build(
 		// FIXME: rebuilding mountutils shouldn't be necessary, but it is.
 		// It's coming from etcher-sdk, a fix has been upstreamed but to use
 		// the latest etcher-sdk we need to upgrade axios at the same time.
-		commands.push(['npm', ['rebuild', 'mountutils', `--arch=${arch}`]]);
+		commands.push([
+			'npm',
+			['rebuild', 'mountutils'],
+			{
+				env: {
+					...process.env,
+					npm_config_arch: arch,
+					npm_config_platform: platform,
+				},
+			},
+		]);
 
 		commands.push([
 			'pkg',
@@ -87,10 +98,10 @@ function build(
 				'--public',
 				'--public-packages',
 				'"*"',
-				// always build for host platform and node version
+				// Always build for the Forge target platform and Node version.
 				// https://github.com/vercel/pkg-fetch/releases
 				'--target',
-				`node20-${arch}`,
+				`node20-${pkgPlatform(platform)}-${arch}`,
 				'--output',
 				binPath,
 			],
@@ -101,6 +112,18 @@ function build(
 		log('running command:', cmd, args.join(' '));
 		execFileSync(cmd, args, { shell: true, stdio: 'inherit', ...opt });
 	});
+}
+
+function pkgPlatform(platform: string): string {
+	if (platform === 'win32') {
+		return 'win';
+	}
+
+	if (platform === 'darwin') {
+		return 'macos';
+	}
+
+	return platform;
 }
 
 function copyArtifact(
@@ -146,7 +169,7 @@ export class SidecarPlugin extends PluginBase<void> {
 			},
 			generateAssets: async (_config, platform, arch) => {
 				log('generateAssets', { platform, arch });
-				build(SRC_DIR, arch, BIN_DIR, BIN_NAME);
+				build(SRC_DIR, platform, arch, BIN_DIR, BIN_NAME);
 			},
 			packageAfterCopy: async (
 				_config,

@@ -1,0 +1,43 @@
+name: Windows ARM64
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+  workflow_dispatch:
+
+jobs:
+  make:
+    name: Make Windows ARM64
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm ci
+          npm i -D winusb-driver-generator
+          node scripts/patch-pkg-fetch-node20-windows.js
+
+      - name: Make Windows ARM64 package
+        shell: bash
+        env:
+          ELECTRON_NO_ATTACH_CONSOLE: 'true'
+        run: npx electron-forge make --platform=win32 --arch=arm64
+
+      - name: Upload Windows ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-${{ github.sha }}
+          path: |
+            out/make/**/*.zip
+            out/make/**/*Setup.exe
+          if-no-files-found: error
