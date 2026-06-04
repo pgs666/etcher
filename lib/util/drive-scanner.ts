@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import * as sdk from 'etcher-sdk';
 import type { Adapter } from 'etcher-sdk/build/scanner/adapters';
 import {
 	BlockDeviceAdapter,
 	UsbbootDeviceAdapter,
 } from 'etcher-sdk/build/scanner/adapters';
+import { Scanner } from 'etcher-sdk/build/scanner/scanner';
 import { geteuid, platform } from 'process';
 
 const adapters: Adapter[] = [
@@ -41,4 +41,4 @@ if (platform === 'win32') {
 	adapters.push(new driverless());
 }
 
-export const scanner = new sdk.scanner.Scanner(adapters);
+export const scanner = new Scanner(adapters);

@@ -23,9 +23,6 @@ import type { MultiDestinationProgress } from 'etcher-sdk/build/multi-write';
 import { toJSON } from '../shared/errors';
 import { GENERAL_ERROR, SUCCESS } from '../shared/exit-codes';
 import type { WriteOptions } from './types/types';
-import { write, cleanup } from './child-writer';
-import { startScanning } from './scanner';
-import { getSourceMetadata } from './source-metadata';
 import type { DrivelistDrive } from '../shared/drive-constraints';
 import type { SourceMetadata } from '../shared/typings/source-selector';
 
@@ -78,8 +75,11 @@ let emitSourceMetadata: (
 ) => void | undefined; // Record<string, never> means an empty object
 
 // Terminate the child process
-async function terminate(exitCode?: number) {
-	await cleanup(Date.now());
+async function terminate(exitCode?: number, cleanupBeforeExit = true) {
+	if (cleanupBeforeExit) {
+		const { cleanup } = await import('./child-writer');
+		await cleanup(Date.now());
+	}
 	process.nextTick(() => {
 		process.exit(exitCode || SUCCESS);
 	});
@@ -92,7 +92,7 @@ function setTerminateTimeout() {
 			console.log(
 				`no connections or heartbeat for ${ETCHER_TERMINATE_TIMEOUT} ms, terminating`,
 			);
-			terminate();
+			terminate(SUCCESS, false);
 		}, ETCHER_TERMINATE_TIMEOUT);
 	} else {
 		return null;
@@ -168,6 +168,7 @@ function setup(): Promise<EmitLog> {
 			 */
 			const onWrite = async (options: WriteOptions) => {
 				log('write requested');
+				const { write, cleanup } = await import('./child-writer');
 
 				// Remove leftover tmp files older than 1 hour
 				cleanup(Date.now() - 60 * 60 * 1000);
@@ -197,6 +198,7 @@ function setup(): Promise<EmitLog> {
 				log('sourceMetadata requested');
 				const { selected, SourceType, auth } = JSON.parse(params);
 				try {
+					const { getSourceMetadata } = await import('./source-metadata');
 					const sourceMatadata = await getSourceMetadata(
 						selected,
 						SourceType,
@@ -239,8 +241,9 @@ function setup(): Promise<EmitLog> {
 				},
 
 				// start scanning for drives
-				scan: () => {
+				scan: async () => {
 					log('Scan requested');
+					const { startScanning } = await import('./scanner');
 					startScanning();
 				},
 
