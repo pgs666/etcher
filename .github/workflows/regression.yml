@@ -38,6 +38,17 @@ jobs:
           node-version: '20.19'
           cache: npm
 
+      - name: Cache build downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-gyp
+            ~/.pkg-cache
+          key: regression-${{ runner.os }}-downloads-${{ hashFiles('npm-shrinkwrap.json') }}
+          restore-keys: |
+            regression-${{ runner.os }}-downloads-
+
       - name: Install Linux host dependencies
         if: runner.os == 'Linux'
         shell: bash

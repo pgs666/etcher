@@ -15,6 +15,8 @@ jobs:
     name: Make Windows ARM64
     runs-on: windows-11-arm
     timeout-minutes: 60
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -24,6 +26,25 @@ jobs:
         with:
           node-version: '20.19'
           cache: npm
+
+      - name: Cache build downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-gyp
+            ~/.pkg-cache
+          key: windows-arm64-downloads-${{ hashFiles('npm-shrinkwrap.json') }}
+          restore-keys: |
+            windows-arm64-downloads-
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: windows-arm64-vcpkg-liblzma-${{ hashFiles('scripts/patch-lzma-native-windows-arm64.js', 'forge.sidecar.ts') }}
+          restore-keys: |
+            windows-arm64-vcpkg-liblzma-
 
       - name: Install dependencies
         shell: bash
