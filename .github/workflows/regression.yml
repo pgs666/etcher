@@ -1,0 +1,66 @@
+name: Regression
+
+on:
+  push:
+    branches:
+      - windows-arm64-ci-port
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-2022
+
+    env:
+      ELECTRON_NO_ATTACH_CONSOLE: 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.19'
+          cache: npm
+
+      - name: Install Linux host dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libudev-dev
+          jq -r '.hostDependencies[][]' package.json | \
+            xargs -L1 echo | sed 's/|//g' | xargs -L1 \
+            sudo apt-get --ignore-missing install || true
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm ci
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            npm i -D winusb-driver-generator
+            node scripts/patch-pkg-fetch-node20-windows.js
+          fi
+
+      - name: Lint
+        shell: bash
+        run: npm run lint
+
+      - name: Package
+        shell: bash
+        run: npm run package
+
+      - name: WDIO
+        if: runner.os == 'Linux'
+        shell: bash
+        run: npm run wdio
