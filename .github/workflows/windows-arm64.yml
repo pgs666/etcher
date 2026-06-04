@@ -36,6 +36,10 @@ jobs:
           ELECTRON_NO_ATTACH_CONSOLE: 'true'
         run: npx electron-forge make --platform=win32 --arch=arm64
 
+      - name: Verify Windows ARM64 package
+        shell: pwsh
+        run: ./scripts/verify-windows-arm64-artifacts.ps1
+
       - name: Upload Windows ARM64 artifacts
         uses: actions/upload-artifact@v4
         with:
