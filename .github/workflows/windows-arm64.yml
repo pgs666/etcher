@@ -40,6 +40,10 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-windows-arm64-artifacts.ps1
 
+      - name: Smoke test Windows ARM64 sidecar
+        shell: bash
+        run: node scripts/smoke-windows-arm64-sidecar.js
+
       - name: Upload Windows ARM64 artifacts
         uses: actions/upload-artifact@v4
         with:
