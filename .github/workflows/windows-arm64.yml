@@ -86,4 +86,6 @@ jobs:
           path: |
             out/make/**/*.zip
             out/make/**/*Setup.exe
+            out/make/**/RELEASES
+            out/make/**/*.nupkg
           if-no-files-found: error
