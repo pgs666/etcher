@@ -101,7 +101,7 @@ function build(
 				// Always build for the Forge target platform and Node version.
 				// https://github.com/vercel/pkg-fetch/releases
 				'--target',
-				`node20-${pkgPlatform(platform)}-${arch}`,
+				`${pkgNodeVersion(arch)}-${pkgPlatform(platform)}-${arch}`,
 				'--output',
 				binPath,
 			],
@@ -124,6 +124,12 @@ function pkgPlatform(platform: string): string {
 	}
 
 	return platform;
+}
+
+function pkgNodeVersion(arch: string): string {
+	// pkg's Node 20 ARM64 base binaries fail before the sidecar can start.
+	// Node 16 is still supported by pkg-fetch and starts cleanly on ARM64.
+	return arch === 'arm64' ? 'node16' : 'node20';
 }
 
 function copyArtifact(
