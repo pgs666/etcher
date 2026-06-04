@@ -38,6 +38,10 @@ jobs:
           restore-keys: |
             windows-arm64-downloads-
 
+      - name: Create vcpkg binary cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+
       - name: Cache vcpkg binaries
         uses: actions/cache@v4
         with:
