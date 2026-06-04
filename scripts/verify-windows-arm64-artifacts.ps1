@@ -40,6 +40,25 @@ function Assert-Arm64Pe {
 	Write-Host "Verified ARM64 PE: $Path"
 }
 
+function Assert-PeMachine {
+	Param(
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][int]$ExpectedMachine,
+		[Parameter(Mandatory = $true)][string]$Description
+	)
+
+	if (-not (Test-Path -LiteralPath $Path)) {
+		throw "Missing expected artifact: $Path"
+	}
+
+	$machine = Get-PeMachine -Path $Path
+	if ($machine -ne $ExpectedMachine) {
+		throw ("Expected $Description PE machine 0x{0:X4} for $Path, got 0x{1:X4}" -f $ExpectedMachine, $machine)
+	}
+
+	Write-Host ("Verified {0} PE: {1}" -f $Description, $Path)
+}
+
 function Assert-Exists {
 	Param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -70,8 +89,15 @@ if ($null -eq $packagedPeFiles -or $packagedPeFiles.Count -eq 0) {
 }
 
 foreach ($file in ($packagedPeFiles | Sort-Object FullName -Unique)) {
+	if ($file.Name -eq 'Squirrel.exe') {
+		continue
+	}
+
 	Assert-Arm64Pe -Path $file.FullName
 }
+
+$squirrelHelperPath = Join-Path $packageDir.FullName 'Squirrel.exe'
+Assert-PeMachine -Path $squirrelHelperPath -ExpectedMachine 0x014C -Description 'Squirrel update helper x86'
 
 $previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
 $previousServerPort = $env:ETCHER_SERVER_PORT
