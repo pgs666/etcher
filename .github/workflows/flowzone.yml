@@ -14,8 +14,11 @@ jobs:
     # prevent duplicate workflows and only allow one `pull_request` or `pull_request_target` for
     # internal or external contributions respectively
     if: |
-      (github.event.pull_request.head.repo.full_name == github.repository && github.event_name == 'pull_request') ||
-      (github.event.pull_request.head.repo.full_name != github.repository && github.event_name == 'pull_request_target')
+      github.repository == 'balena-io/etcher' &&
+      (
+        (github.event.pull_request.head.repo.full_name == github.repository && github.event_name == 'pull_request') ||
+        (github.event.pull_request.head.repo.full_name != github.repository && github.event_name == 'pull_request_target')
+      )
     secrets: inherit
     with:
       custom_test_matrix: >
