@@ -6,10 +6,15 @@ on:
   push:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   make:
     name: Make Windows ARM64
     runs-on: windows-11-arm
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v6
