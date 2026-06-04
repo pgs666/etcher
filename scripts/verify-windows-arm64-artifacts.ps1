@@ -66,9 +66,15 @@ $previousServerPort = $env:ETCHER_SERVER_PORT
 try {
 	$env:ETCHER_TERMINATE_TIMEOUT = '1000'
 	$env:ETCHER_SERVER_PORT = '45678'
-	& $sidecarPath
-	if ($LASTEXITCODE -ne 0) {
-		throw "Sidecar smoke test failed with exit code $LASTEXITCODE"
+	$stdoutPath = Join-Path $env:RUNNER_TEMP 'etcher-util.stdout.log'
+	$stderrPath = Join-Path $env:RUNNER_TEMP 'etcher-util.stderr.log'
+	$process = Start-Process -FilePath $sidecarPath -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+	if ($process.ExitCode -ne 0) {
+		Write-Host "Sidecar stdout tail:"
+		Get-Content -LiteralPath $stdoutPath -Tail 40 -ErrorAction SilentlyContinue
+		Write-Host "Sidecar stderr tail:"
+		Get-Content -LiteralPath $stderrPath -Tail 40 -ErrorAction SilentlyContinue
+		throw "Sidecar smoke test failed with exit code $($process.ExitCode)"
 	}
 	Write-Host 'Verified sidecar starts and exits cleanly'
 } finally {
