@@ -23,9 +23,12 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          npm ci
-          npm i -D winusb-driver-generator
+          npm ci --ignore-scripts
+          npm i -D winusb-driver-generator --ignore-scripts
           node scripts/patch-pkg-fetch-node20-windows.js
+          vcpkg install liblzma:arm64-windows
+          node scripts/patch-lzma-native-windows-arm64.js
+          npm rebuild --foreground-scripts
 
       - name: Make Windows ARM64 package
         shell: bash
