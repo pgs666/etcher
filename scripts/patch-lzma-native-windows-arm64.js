@@ -97,7 +97,7 @@ binding = binding.replace(
               'action': ['mkdir <(dlldir) > nul 2>&1 & copy "<(module_root_dir)/deps/<(arch_lib_path)/liblzma.dll" <(dlldir)/liblzma.dll']`,
 	`'inputs': [],
               'outputs': ['<(dlldir)/liblzma.dll'],
-              'action': ['cmd.exe /d /s /c "mkdir <(dlldir) > nul 2>&1 & if \\"<(arch_lib_code)\\"==\\"arm64\\" ( copy \\"<(arch_lib_path)/lzma.dll\\" <(dlldir)/liblzma.dll ) else ( copy \\"<(module_root_dir)/deps/<(arch_lib_path)/liblzma.dll\\" <(dlldir)/liblzma.dll )"']`,
+              'action': ['cmd.exe /d /s /c "mkdir <(dlldir) > nul 2>&1 & if \\"<(arch_lib_code)\\"==\\"arm64\\" ( copy \\"<(arch_lib_path)/liblzma.dll\\" <(dlldir)/liblzma.dll ) else ( copy \\"<(module_root_dir)/deps/<(arch_lib_path)/liblzma.dll\\" <(dlldir)/liblzma.dll )"']`,
 );
 
 fs.writeFileSync(bindingPath, binding);

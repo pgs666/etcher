@@ -17,6 +17,7 @@
 import { WebSocketServer } from 'ws';
 import type { Dictionary } from 'lodash';
 import { values } from 'lodash';
+import * as path from 'path';
 
 import type { MultiDestinationProgress } from 'etcher-sdk/build/multi-write';
 
@@ -25,6 +26,15 @@ import { GENERAL_ERROR, SUCCESS } from '../shared/exit-codes';
 import type { WriteOptions } from './types/types';
 import type { DrivelistDrive } from '../shared/drive-constraints';
 import type { SourceMetadata } from '../shared/typings/source-selector';
+
+function includeSidecarDirectoryInDllSearchPath() {
+	if (process.platform !== 'win32') {
+		return;
+	}
+
+	const sidecarDir = path.dirname(process.execPath);
+	process.env.PATH = `${sidecarDir};${process.env.PATH ?? ''}`;
+}
 
 // Utility to parse --key=value arguments into process.env if not already set
 function injectEnvFromArgs() {
@@ -42,6 +52,7 @@ function injectEnvFromArgs() {
 
 // Inject env vars from arguments if not already present
 injectEnvFromArgs();
+includeSidecarDirectoryInDllSearchPath();
 
 console.log(
 	'Etcher child process started with the following environment variables:',
@@ -141,8 +152,9 @@ function setup(): Promise<EmitLog> {
 			 * @summary Handle `errors`
 			 */
 			async function handleError(error: Error) {
+				console.error(error);
 				emit('error', toJSON(error));
-				await terminate(GENERAL_ERROR);
+				await terminate(GENERAL_ERROR, false);
 			}
 
 			/**

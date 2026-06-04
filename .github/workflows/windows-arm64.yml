@@ -12,10 +12,10 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20.19'
           cache: npm
@@ -44,8 +44,12 @@ jobs:
         shell: bash
         run: node scripts/smoke-windows-arm64-sidecar.js
 
+      - name: Smoke test Windows ARM64 app
+        shell: pwsh
+        run: ./scripts/smoke-windows-arm64-app.ps1
+
       - name: Upload Windows ARM64 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-arm64-${{ github.sha }}
           path: |

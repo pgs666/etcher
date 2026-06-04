@@ -134,6 +134,7 @@ function pkgNodeVersion(arch: string): string {
 
 function copyArtifact(
 	buildPath: string,
+	platform: string,
 	arch: string,
 	binDir: string,
 	binName: string,
@@ -150,6 +151,21 @@ function copyArtifact(
 	const dest = path.resolve(resourcesPath, path.basename(binPath));
 	log(`copying '${binPath}' to '${dest}'`);
 	fs.copyFileSync(binPath, dest);
+
+	if (platform === 'win32' && arch === 'arm64') {
+		const vcpkgRoot = process.env.VCPKG_INSTALLATION_ROOT || 'C:\\vcpkg';
+		const vcpkgTriplet = process.env.VCPKG_DEFAULT_TRIPLET || 'arm64-windows';
+		const lzmaDll = path.join(
+			vcpkgRoot,
+			'installed',
+			vcpkgTriplet,
+			'bin',
+			'liblzma.dll',
+		);
+		const lzmaDest = path.resolve(resourcesPath, 'liblzma.dll');
+		log(`copying '${lzmaDll}' to '${lzmaDest}'`);
+		fs.copyFileSync(lzmaDll, lzmaDest);
+	}
 }
 
 export class SidecarPlugin extends PluginBase<void> {
@@ -190,7 +206,7 @@ export class SidecarPlugin extends PluginBase<void> {
 					platform,
 					arch,
 				});
-				copyArtifact(buildPath, arch, BIN_DIR, BIN_NAME);
+				copyArtifact(buildPath, platform, arch, BIN_DIR, BIN_NAME);
 			},
 		};
 	}

@@ -40,25 +40,37 @@ function Assert-Arm64Pe {
 	Write-Host "Verified ARM64 PE: $Path"
 }
 
+function Assert-Exists {
+	Param([Parameter(Mandatory = $true)][string]$Path)
+
+	if (-not (Test-Path -LiteralPath $Path)) {
+		throw "Missing expected artifact: $Path"
+	}
+}
+
 $packageDir = Get-ChildItem -Path out -Directory -Filter 'balenaEtcher-win32-arm64' | Select-Object -First 1
 if ($null -eq $packageDir) {
 	throw 'Missing packaged app directory out/balenaEtcher-win32-arm64'
 }
 
+$packageJson = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
 $resourcesDir = Join-Path $packageDir.FullName 'resources'
 $nativeModulesDir = Join-Path $resourcesDir 'app.asar.unpacked'
 $sidecarPath = Join-Path $resourcesDir 'etcher-util.exe'
+$lzmaPath = Join-Path $resourcesDir 'liblzma.dll'
 
-Assert-Arm64Pe -Path (Join-Path $packageDir.FullName 'balenaEtcher.exe')
-Assert-Arm64Pe -Path $sidecarPath
-
-$matchedNativeModules = Get-ChildItem -Path $nativeModulesDir -Recurse -File -Filter '*.node' -ErrorAction SilentlyContinue
-if ($null -eq $matchedNativeModules -or $matchedNativeModules.Count -eq 0) {
+$nativeModules = Get-ChildItem -Path $nativeModulesDir -Recurse -File -Filter '*.node' -ErrorAction SilentlyContinue
+if ($null -eq $nativeModules -or $nativeModules.Count -eq 0) {
 	throw "No native modules found under $nativeModulesDir"
 }
 
-foreach ($module in ($matchedNativeModules | Sort-Object FullName -Unique)) {
-	Assert-Arm64Pe -Path $module.FullName
+$packagedPeFiles = Get-ChildItem -Path $packageDir.FullName -Recurse -File -Include '*.exe', '*.dll', '*.node' -ErrorAction SilentlyContinue
+if ($null -eq $packagedPeFiles -or $packagedPeFiles.Count -eq 0) {
+	throw "No PE files found under $($packageDir.FullName)"
+}
+
+foreach ($file in ($packagedPeFiles | Sort-Object FullName -Unique)) {
+	Assert-Arm64Pe -Path $file.FullName
 }
 
 $previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
@@ -82,9 +94,29 @@ try {
 	$env:ETCHER_SERVER_PORT = $previousServerPort
 }
 
-$distFiles = Get-ChildItem -Path out/make -Recurse -File -Include '*.zip', '*Setup.exe'
-if ($distFiles.Count -lt 2) {
-	throw 'Expected both zip and Squirrel Setup.exe distributables'
+$squirrelDir = Get-ChildItem -Path out/make -Directory -Recurse -Filter 'arm64' |
+	Where-Object { $_.FullName -like '*squirrel.windows*' } |
+	Select-Object -First 1
+if ($null -eq $squirrelDir) {
+	throw 'Missing Squirrel Windows ARM64 output directory'
 }
 
-$distFiles | ForEach-Object { Write-Host "Found distributable: $($_.FullName)" }
+$setupExe = Join-Path $squirrelDir.FullName "balenaEtcher-$($packageJson.version) Setup.exe"
+$releasesFile = Join-Path $squirrelDir.FullName 'RELEASES'
+$fullNupkg = Get-ChildItem -Path $squirrelDir.FullName -File -Filter '*-full.nupkg' | Select-Object -First 1
+
+Assert-Exists -Path $setupExe
+Assert-Exists -Path $releasesFile
+if ($null -eq $fullNupkg) {
+	throw "Missing Squirrel full nupkg under $($squirrelDir.FullName)"
+}
+
+$zipFile = Get-ChildItem -Path out/make/zip/win32/arm64 -File -Filter '*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($null -eq $zipFile) {
+	throw 'Missing Windows ARM64 zip distributable'
+}
+
+Write-Host "Found distributable: $setupExe"
+Write-Host "Found distributable: $($zipFile.FullName)"
+Write-Host "Found Squirrel RELEASES: $releasesFile"
+Write-Host "Found Squirrel full package: $($fullNupkg.FullName)"

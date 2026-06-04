@@ -20,14 +20,6 @@ function isString(value: any): value is string {
 	return typeof value === 'string';
 }
 
-function shouldUseDirectSourceMetadata() {
-	return (
-		Boolean((process as any).pkg) &&
-		process.platform === 'win32' &&
-		process.arch === 'arm64'
-	);
-}
-
 async function createSource(
 	selected: string,
 	SourceType: Source,
@@ -85,9 +77,7 @@ async function getSourceMetadata(
 		const source = await createSource(selected, SourceType, auth);
 
 		try {
-			const innerSource = shouldUseDirectSourceMetadata()
-				? source
-				: await source.getInnerSource();
+			const innerSource = await source.getInnerSource();
 
 			const metadata = await getMetadata(innerSource, selected);
 

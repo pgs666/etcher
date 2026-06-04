@@ -19,9 +19,6 @@ inputs:
   VERBOSE:
     type: string
     default: 'true'
-  TARGET_ARCH:
-    type: string
-    default: ''
 
 runs:
   # https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
@@ -128,22 +125,17 @@ runs:
 
         APPLICATION_VERSION="$(jq -r '.version' package.json)"
         HOST_ARCH="$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
-        TARGET_ARCH='${{ inputs.TARGET_ARCH }}'
-        TARGET_ARCH="${TARGET_ARCH:-${HOST_ARCH}}"
 
         if [[ "${RUNNER_OS}" == Linux ]]; then
           PLATFORM=Linux
-          FORGE_PLATFORM=linux
           SHA256SUM_BIN=sha256sum
 
         elif [[ "${RUNNER_OS}" == macOS ]]; then
           PLATFORM=Darwin
-          FORGE_PLATFORM=darwin
           SHA256SUM_BIN='shasum -a 256'
 
         elif [[ "${RUNNER_OS}" == Windows ]]; then
           PLATFORM=Windows
-          FORGE_PLATFORM=win32
           SHA256SUM_BIN=sha256sum
 
           # Install DigiCert Signing Manager Tools
@@ -158,14 +150,15 @@ runs:
           /c/Windows/System32/certutil.exe -csp "DigiCert Signing Manager KSP" -key -user
 
           # (signtool.exe) https://github.com/actions/runner-images/blob/main/images/win/Windows2019-Readme.md#installed-windows-sdks
-          PATH="/c/Program Files (x86)/Windows Kits/10/bin/${HOST_ARCH}:${PATH}"
+          PATH="/c/Program Files (x86)/Windows Kits/10/bin/${runner_arch}:${PATH}"
 
         else
           echo "ERROR: unexpected runner OS: ${RUNNER_OS}"
           exit 1
         fi
 
-        npx electron-forge make --platform="${FORGE_PLATFORM}" --arch="${TARGET_ARCH}"
+        # Currently, we can only build for the host architecture.
+        npx electron-forge make
 
         echo "version=${APPLICATION_VERSION}" >> $GITHUB_OUTPUT
 
@@ -183,7 +176,7 @@ runs:
         if [[ -n "${SHA256SUM_BIN}" ]]; then
           # Compute and save digests.
           cd dist/
-          ${SHA256SUM_BIN} *.* >"SHA256SUMS.${PLATFORM}.${TARGET_ARCH}.txt"
+          ${SHA256SUM_BIN} *.* >"SHA256SUMS.${PLATFORM}.${HOST_ARCH}.txt"
         fi
       env:
         # ensure we sign the artifacts

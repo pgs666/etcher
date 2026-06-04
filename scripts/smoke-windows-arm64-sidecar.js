@@ -57,6 +57,75 @@ function send(ws, type, payload) {
 	ws.send(JSON.stringify({ type, payload }));
 }
 
+function waitForMessage(ws, type, timeoutMs) {
+	return new Promise((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			ws.off('message', onMessage);
+			reject(new Error(`Timed out waiting for ${type}`));
+		}, timeoutMs);
+
+		const onMessage = (data) => {
+			const message = JSON.parse(data.toString());
+			if (message.type === 'error' || message.type === 'fail') {
+				clearTimeout(timeout);
+				ws.off('message', onMessage);
+				reject(new Error(`${message.type}: ${message.payload}`));
+				return;
+			}
+
+			if (message.type === type) {
+				clearTimeout(timeout);
+				ws.off('message', onMessage);
+				resolve(message);
+			}
+		};
+
+		ws.on('message', onMessage);
+	});
+}
+
+function waitForNoError(ws, timeoutMs) {
+	return new Promise((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			ws.off('message', onMessage);
+			resolve();
+		}, timeoutMs);
+
+		const onMessage = (data) => {
+			const message = JSON.parse(data.toString());
+			if (message.type === 'error' || message.type === 'fail') {
+				clearTimeout(timeout);
+				ws.off('message', onMessage);
+				reject(new Error(`${message.type}: ${message.payload}`));
+			}
+		};
+
+		ws.on('message', onMessage);
+	});
+}
+
+function parsePayload(message) {
+	return typeof message.payload === 'string'
+		? JSON.parse(message.payload)
+		: message.payload;
+}
+
+function assertSourceMetadata(message) {
+	const metadata = parsePayload(message);
+	if (metadata.size !== 1024 * 1024) {
+		throw new Error(`Unexpected source metadata size: ${metadata.size}`);
+	}
+	if (metadata.path !== testImagePath) {
+		throw new Error(`Unexpected source metadata path: ${metadata.path}`);
+	}
+	if (metadata.extension !== 'img') {
+		throw new Error(`Unexpected source metadata extension: ${metadata.extension}`);
+	}
+	if (metadata.hasMBR !== false) {
+		throw new Error(`Unexpected source metadata hasMBR: ${metadata.hasMBR}`);
+	}
+}
+
 async function main() {
 	fs.writeFileSync(testImagePath, Buffer.alloc(1024 * 1024));
 
@@ -81,11 +150,14 @@ async function main() {
 	let ws;
 	try {
 		ws = await connectWebSocket(`ws://127.0.0.1:${port}`, 15000);
-		ws.on('message', () => undefined);
+		const ready = waitForMessage(ws, 'ready', 5000);
 
 		send(ws, 'ready');
+		await ready;
+
 		send(ws, 'heartbeat');
-		send(ws, 'scan');
+
+		const metadata = waitForMessage(ws, 'sourceMetadata', 5000);
 		send(
 			ws,
 			'sourceMetadata',
@@ -94,8 +166,10 @@ async function main() {
 				SourceType: 'File',
 			}),
 		);
+		assertSourceMetadata(await metadata);
 
-		await wait(2000);
+		send(ws, 'scan');
+		await waitForNoError(ws, 2000);
 		send(ws, 'terminate');
 	} catch (error) {
 		child.kill();
