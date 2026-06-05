@@ -91,6 +91,27 @@ jobs:
         shell: bash
         run: node scripts/verify-packaged-icon-assets.js
 
+      - name: Generate Windows ARM64 checksums
+        shell: pwsh
+        run: |
+          $artifactRoot = (Resolve-Path out/make).Path
+          $checksumFile = Join-Path $artifactRoot 'windows-arm64-SHA256SUMS.txt'
+          $files = Get-ChildItem -Path $artifactRoot -Recurse -File -Include '*.zip', '*Setup.exe', 'RELEASES', '*.nupkg' |
+            Sort-Object FullName
+
+          if ($null -eq $files -or $files.Count -eq 0) {
+            throw "No Windows ARM64 distributables found under $artifactRoot"
+          }
+
+          $lines = foreach ($file in $files) {
+            $relativePath = [System.IO.Path]::GetRelativePath($artifactRoot, $file.FullName).Replace('\', '/')
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            "$hash  $relativePath"
+          }
+
+          Set-Content -LiteralPath $checksumFile -Value $lines -Encoding ascii
+          Get-Content -LiteralPath $checksumFile
+
       - name: Upload Windows ARM64 artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -100,4 +121,5 @@ jobs:
             out/make/**/*Setup.exe
             out/make/**/RELEASES
             out/make/**/*.nupkg
+            out/make/windows-arm64-SHA256SUMS.txt
           if-no-files-found: error
