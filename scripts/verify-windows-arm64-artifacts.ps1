@@ -91,6 +91,9 @@ function Assert-SidecarDiagnostics {
 	Param([Parameter(Mandatory = $true)][string]$Path)
 
 	Assert-BinaryContainsAscii -Path $Path -Text "Couldn't clean the drive"
+	Assert-BinaryContainsAscii -Path $Path -Text 'signal: ${error.signal}'
+	Assert-BinaryContainsAscii -Path $Path -Text 'killed: ${error.killed}'
+	Assert-BinaryContainsAscii -Path $Path -Text 'command: ${error.cmd}'
 	Assert-BinaryContainsAscii -Path $Path -Text 'stdout:\n${error.stdout}'
 	Assert-BinaryContainsAscii -Path $Path -Text 'stderr:\n${error.stderr}'
 	Assert-BinaryContainsAscii -Path $Path -Text 'script:\n${error.script}'

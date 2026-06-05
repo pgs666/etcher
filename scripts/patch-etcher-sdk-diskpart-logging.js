@@ -21,14 +21,26 @@ function replaceOnce(source, needle, replacement) {
 	return source.replace(needle, replacement);
 }
 
-if (diskpart.includes('Subclass to capture output from command execution.')) {
+if (diskpart.includes('this.cmd = cmd;')) {
 	console.log('etcher-sdk diskpart logging patch already applied');
 	process.exit(0);
 }
 
 diskpart = replaceOnce(
 	diskpart,
-	`/** Subclass to capture stdout from command execution. */
+	diskpart.includes('Subclass to capture output from command execution.')
+		? `/** Subclass to capture output from command execution. */
+class ExecError extends Error {
+    constructor(message, stdout, stderr, code) {
+        super(message);
+        this.name = 'ExecError';
+        this.stdout = stdout;
+        this.stderr = stderr;
+        this.code = code;
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}`
+		: `/** Subclass to capture stdout from command execution. */
 class ExecError extends Error {
     constructor(message, stdout) {
         super(message);
@@ -39,12 +51,15 @@ class ExecError extends Error {
 }`,
 	`/** Subclass to capture output from command execution. */
 class ExecError extends Error {
-    constructor(message, stdout, stderr, code) {
+    constructor(message, stdout, stderr, code, signal, killed, cmd) {
         super(message);
         this.name = 'ExecError';
         this.stdout = stdout;
         this.stderr = stderr;
         this.code = code;
+        this.signal = signal;
+        this.killed = killed;
+        this.cmd = cmd;
         Object.setPrototypeOf(this, new.target.prototype);
     }
 }`,
@@ -52,31 +67,40 @@ class ExecError extends Error {
 
 diskpart = replaceOnce(
 	diskpart,
-	`if (error) {
+	diskpart.includes(
+		'reject(new ExecError(error.message, stdout, stderr, error.code));',
+	)
+		? `if (error) {
+                reject(new ExecError(error.message, stdout, stderr, error.code));
+            }`
+		: `if (error) {
                 reject(new ExecError(error.message, stdout));
             }`,
 	`if (error) {
-                reject(new ExecError(error.message, stdout, stderr, error.code));
+                reject(new ExecError(error.message, stdout, stderr, error.code, error.signal, error.killed, error.cmd));
             }`,
 );
 
-diskpart = replaceOnce(
-	diskpart,
-	`let output = { stdout: '', stderr: '' };
+if (!diskpart.includes("const script = commands.join('\\r\\n');")) {
+	diskpart = replaceOnce(
+		diskpart,
+		`let output = { stdout: '', stderr: '' };
     await (0, tmp_1.withTmpFile)({ keepOpen: false }, async (file) => {
         await fs_1.promises.writeFile(file.path, commands.join('\\r\\n'));`,
-	`let output = { stdout: '', stderr: '' };
+		`let output = { stdout: '', stderr: '' };
     await (0, tmp_1.withTmpFile)({ keepOpen: false }, async (file) => {
         const script = commands.join('\\r\\n');
         await fs_1.promises.writeFile(file.path, script);`,
-);
+	);
+}
 
-diskpart = replaceOnce(
-	diskpart,
-	`output = await execFileAsync('diskpart', ['/s', file.path]);
+if (!diskpart.includes('error.script = script;')) {
+	diskpart = replaceOnce(
+		diskpart,
+		`output = await execFileAsync('diskpart', ['/s', file.path]);
             debug('stdout:', output.stdout);
             debug('stderr:', output.stderr);`,
-	`try {
+		`try {
                 output = await execFileAsync('diskpart', ['/s', file.path]);
             }
             catch (error) {
@@ -85,13 +109,24 @@ diskpart = replaceOnce(
             }
             debug('stdout:', output.stdout);
             debug('stderr:', output.stderr);`,
-);
+	);
+}
 
 diskpart = replaceOnce(
 	diskpart,
-	`throw new Error(\`Couldn't clean the drive, \${error.message} (code \${error.code})\`);`,
+	diskpart.includes('stdout:\\n${error.stdout}')
+		? `throw new Error([
+                    \`Couldn't clean the drive, \${error.message} (code \${error.code})\`,
+                    error.stdout ? \`stdout:\\n\${error.stdout}\` : '',
+                    error.stderr ? \`stderr:\\n\${error.stderr}\` : '',
+                    error.script ? \`script:\\n\${error.script}\` : '',
+                ].filter(Boolean).join('\\n'));`
+		: `throw new Error(\`Couldn't clean the drive, \${error.message} (code \${error.code})\`);`,
 	`throw new Error([
                     \`Couldn't clean the drive, \${error.message} (code \${error.code})\`,
+                    error.signal ? \`signal: \${error.signal}\` : '',
+                    typeof error.killed === 'boolean' ? \`killed: \${error.killed}\` : '',
+                    error.cmd ? \`command: \${error.cmd}\` : '',
                     error.stdout ? \`stdout:\\n\${error.stdout}\` : '',
                     error.stderr ? \`stderr:\\n\${error.stderr}\` : '',
                     error.script ? \`script:\\n\${error.script}\` : '',

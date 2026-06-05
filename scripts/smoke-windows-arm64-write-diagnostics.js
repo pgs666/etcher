@@ -101,6 +101,8 @@ function assertDiagnosticError(payload) {
 	const message = getDiagnosticMessage(payload);
 	for (const snippet of [
 		"Couldn't clean the drive",
+		'killed: false',
+		'command: diskpart',
 		'select disk 99999',
 		'clean',
 		'rescan',
