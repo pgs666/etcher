@@ -67,6 +67,27 @@ function Assert-Exists {
 	}
 }
 
+function Assert-Arm64PackagePeFiles {
+	Param(
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][string]$Description
+	)
+
+	$peFiles = Get-ChildItem -Path $Path -Recurse -File -Include '*.exe', '*.dll', '*.node' -ErrorAction SilentlyContinue
+	if ($null -eq $peFiles -or $peFiles.Count -eq 0) {
+		throw "No PE files found under $Path"
+	}
+
+	foreach ($file in ($peFiles | Sort-Object FullName -Unique)) {
+		if ($file.Name -eq 'Squirrel.exe') {
+			Assert-PeMachine -Path $file.FullName -ExpectedMachine 0x014C -Description "$Description Squirrel update helper x86"
+			continue
+		}
+
+		Assert-Arm64Pe -Path $file.FullName
+	}
+}
+
 $packageDir = Get-ChildItem -Path out -Directory -Filter 'balenaEtcher-win32-arm64' | Select-Object -First 1
 if ($null -eq $packageDir) {
 	throw 'Missing packaged app directory out/balenaEtcher-win32-arm64'
@@ -83,21 +104,7 @@ if ($null -eq $nativeModules -or $nativeModules.Count -eq 0) {
 	throw "No native modules found under $nativeModulesDir"
 }
 
-$packagedPeFiles = Get-ChildItem -Path $packageDir.FullName -Recurse -File -Include '*.exe', '*.dll', '*.node' -ErrorAction SilentlyContinue
-if ($null -eq $packagedPeFiles -or $packagedPeFiles.Count -eq 0) {
-	throw "No PE files found under $($packageDir.FullName)"
-}
-
-foreach ($file in ($packagedPeFiles | Sort-Object FullName -Unique)) {
-	if ($file.Name -eq 'Squirrel.exe') {
-		continue
-	}
-
-	Assert-Arm64Pe -Path $file.FullName
-}
-
-$squirrelHelperPath = Join-Path $packageDir.FullName 'Squirrel.exe'
-Assert-PeMachine -Path $squirrelHelperPath -ExpectedMachine 0x014C -Description 'Squirrel update helper x86'
+Assert-Arm64PackagePeFiles -Path $packageDir.FullName -Description 'packaged app'
 
 $previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
 $previousServerPort = $env:ETCHER_SERVER_PORT
@@ -136,6 +143,15 @@ Assert-Exists -Path $releasesFile
 if ($null -eq $fullNupkg) {
 	throw "Missing Squirrel full nupkg under $($squirrelDir.FullName)"
 }
+
+$tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+$nupkgExtractDir = Join-Path $tempRoot 'etcher-arm64-full-nupkg'
+$nupkgZipPath = Join-Path $tempRoot 'etcher-arm64-full-nupkg.zip'
+Remove-Item -LiteralPath $nupkgExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $nupkgZipPath -Force -ErrorAction SilentlyContinue
+Copy-Item -LiteralPath $fullNupkg.FullName -Destination $nupkgZipPath
+Expand-Archive -LiteralPath $nupkgZipPath -DestinationPath $nupkgExtractDir -Force
+Assert-Arm64PackagePeFiles -Path $nupkgExtractDir -Description 'Squirrel full nupkg'
 
 $zipFile = Get-ChildItem -Path out/make/zip/win32/arm64 -File -Filter '*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($null -eq $zipFile) {
