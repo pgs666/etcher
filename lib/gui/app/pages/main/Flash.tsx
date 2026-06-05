@@ -29,6 +29,7 @@ import * as selection from '../../models/selection-state';
 import * as analytics from '../../modules/analytics';
 import * as imageWriter from '../../modules/image-writer';
 import * as notification from '../../os/notification';
+import appIconPath from '../../../../../assets/icon.png';
 import {
 	selectAllTargets,
 	TargetSelectorModal,
@@ -94,7 +95,6 @@ async function flashImageToDrive(
 		return '';
 	}
 
-	const iconPath = path.join('media', 'icon.png');
 	const basename = path.basename(image.path);
 	try {
 		await imageWriter.flash(image, drives);
@@ -106,15 +106,15 @@ async function flashImageToDrive(
 			} = flashState.getFlashResults();
 			if (!skip && !cancelled) {
 				if (results?.devices?.successful > 0) {
-					notifySuccess(iconPath, basename, drives, results.devices);
+					notifySuccess(appIconPath, basename, drives, results.devices);
 				} else {
-					notifyFailure(iconPath, basename, drives);
+					notifyFailure(appIconPath, basename, drives);
 				}
 			}
 			goToSuccess();
 		}
 	} catch (error: any) {
-		notifyFailure(iconPath, basename, drives);
+		notifyFailure(appIconPath, basename, drives);
 		let errorMessage = getErrorMessageFromCode(error.code);
 		if (!errorMessage) {
 			error.image = basename;

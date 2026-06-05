@@ -59,6 +59,13 @@ const rules: Required<ModuleOptions>['rules'] = [
 		test: /\.svg$/,
 		use: '@svgr/webpack',
 	},
+	{
+		test: /\.png$/,
+		loader: 'file-loader',
+		options: {
+			name: 'media/[name].[ext]',
+		},
+	},
 ];
 
 const injectAnalyticsToken = new DefinePlugin({

@@ -54,6 +54,22 @@ Run the following tests with and without validation enabled:
 - [ ] Start flashing an image, try to close Etcher, cancel the application
       close warning dialog, and check that Etcher continues to flash the image
 
+## Windows on ARM
+
+Run these checks on real Windows on ARM hardware using the Windows ARM64 CI
+artifact for the commit under test:
+
+- [ ] Install the Squirrel `Setup.exe` from the CI artifact
+- [ ] Start Etcher from the installed application
+- [ ] Select a local image and confirm source metadata loads
+- [ ] Insert a removable USB drive and confirm drive scanning finds it
+- [ ] Accept UAC and flash the image with validation enabled
+- [ ] Confirm flashing and validation finish successfully
+- [ ] If flashing fails before writing starts, capture the renderer console
+      error. Diskpart clean failures should include `stdout`, `stderr`,
+      `script`, `signal`, `killed`, and `command` diagnostics.
+- [ ] Reopen Etcher after the test and confirm drive scanning still works
+
 ### Child Writer
 
 - [ ] Kill the child writer process (i.e. with `SIGINT` or `SIGKILL`), and

@@ -1,0 +1,212 @@
+name: Windows ARM64
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Upload verified Windows ARM64 distributables to the release
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: Release tag to publish
+        required: false
+        default: v2.1.6-arm64
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  make:
+    name: Make Windows ARM64
+    runs-on: windows-11-arm
+    timeout-minutes: 60
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.19'
+          cache: npm
+
+      - name: Cache build downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-gyp
+            ~/.pkg-cache
+          key: windows-arm64-downloads-${{ hashFiles('npm-shrinkwrap.json') }}
+          restore-keys: |
+            windows-arm64-downloads-
+
+      - name: Create vcpkg binary cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: windows-arm64-vcpkg-liblzma-${{ hashFiles('scripts/patch-lzma-native-windows-arm64.js', 'forge.sidecar.ts') }}
+          restore-keys: |
+            windows-arm64-vcpkg-liblzma-
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+          npm i -D winusb-driver-generator --ignore-scripts --prefer-offline --no-audit --no-fund
+          node scripts/patch-pkg-fetch-node20-windows.js
+          node scripts/patch-etcher-sdk-diskpart-logging.js
+          node scripts/verify-etcher-sdk-diskpart-logging.js
+          vcpkg install liblzma:arm64-windows
+          node scripts/patch-lzma-native-windows-arm64.js
+          npm rebuild --foreground-scripts
+
+      - name: Make Windows ARM64 package
+        shell: bash
+        env:
+          ELECTRON_NO_ATTACH_CONSOLE: 'true'
+        run: npx electron-forge make --platform=win32 --arch=arm64
+
+      - name: Verify Windows ARM64 package
+        shell: pwsh
+        run: ./scripts/verify-windows-arm64-artifacts.ps1
+
+      - name: Smoke test Windows ARM64 sidecar
+        shell: bash
+        run: node scripts/smoke-windows-arm64-sidecar.js
+
+      - name: Smoke test Windows ARM64 write diagnostics
+        shell: bash
+        run: node scripts/smoke-windows-arm64-write-diagnostics.js
+
+      - name: Smoke test Windows ARM64 app
+        shell: pwsh
+        run: ./scripts/smoke-windows-arm64-app.ps1
+
+      - name: Smoke test Windows ARM64 installer
+        shell: pwsh
+        run: ./scripts/smoke-windows-arm64-installer.ps1
+
+      - name: Verify packaged icon assets
+        shell: bash
+        run: node scripts/verify-packaged-icon-assets.js
+
+      - name: Generate Windows ARM64 checksums
+        shell: pwsh
+        run: |
+          $artifactRoot = (Resolve-Path out/make).Path
+          $checksumFile = Join-Path $artifactRoot 'windows-arm64-SHA256SUMS.txt'
+          $manifestFile = Join-Path $artifactRoot 'windows-arm64-build-manifest.json'
+          $files = Get-ChildItem -Path $artifactRoot -Recurse -File -Include '*.zip', '*Setup.exe', 'RELEASES', '*.nupkg' |
+            Sort-Object FullName
+
+          if ($null -eq $files -or $files.Count -eq 0) {
+            throw "No Windows ARM64 distributables found under $artifactRoot"
+          }
+
+          $lines = foreach ($file in $files) {
+            $relativePath = [System.IO.Path]::GetRelativePath($artifactRoot, $file.FullName).Replace('\', '/')
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            "$hash  $relativePath"
+          }
+
+          Set-Content -LiteralPath $checksumFile -Value $lines -Encoding ascii
+          Get-Content -LiteralPath $checksumFile
+
+          $packageJson = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          $manifest = [ordered]@{
+            workflow = $env:GITHUB_WORKFLOW
+            runId = $env:GITHUB_RUN_ID
+            runAttempt = $env:GITHUB_RUN_ATTEMPT
+            eventName = $env:GITHUB_EVENT_NAME
+            repository = $env:GITHUB_REPOSITORY
+            ref = $env:GITHUB_REF
+            sha = $env:GITHUB_SHA
+            productName = $packageJson.productName
+            version = $packageJson.version
+            platform = 'win32'
+            arch = 'arm64'
+            node = (node --version)
+            npm = (npm --version)
+            electron = $packageJson.devDependencies.electron
+            generatedAt = (Get-Date).ToUniversalTime().ToString('o')
+            files = @($lines | ForEach-Object {
+              $parts = $_ -split '\s+', 2
+              [ordered]@{
+                sha256 = $parts[0]
+                path = $parts[1]
+              }
+            })
+          }
+
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestFile -Encoding ascii
+          Get-Content -LiteralPath $manifestFile
+
+      - name: Upload Windows ARM64 artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-arm64-${{ github.sha }}
+          path: |
+            out/make/**/*.zip
+            out/make/**/*Setup.exe
+            out/make/**/RELEASES
+            out/make/**/*.nupkg
+            out/make/windows-arm64-SHA256SUMS.txt
+            out/make/windows-arm64-build-manifest.json
+          if-no-files-found: error
+
+      - name: Publish Windows ARM64 release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $packageJson = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          $releaseTag = '${{ inputs.release_tag }}'
+          if ([string]::IsNullOrWhiteSpace($releaseTag)) {
+            $releaseTag = "v$($packageJson.version)-arm64"
+          }
+
+          $artifactRoot = (Resolve-Path out/make).Path
+          $files = Get-ChildItem -Path $artifactRoot -Recurse -File -Include '*.zip', '*Setup.exe', 'RELEASES', '*.nupkg', 'windows-arm64-SHA256SUMS.txt', 'windows-arm64-build-manifest.json' |
+            Sort-Object FullName
+
+          if ($null -eq $files -or $files.Count -eq 0) {
+            throw "No Windows ARM64 release files found under $artifactRoot"
+          }
+
+          $releaseExists = $true
+          gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $releaseExists = $false
+          }
+
+          if (-not $releaseExists) {
+            gh release create $releaseTag `
+              --target $env:GITHUB_SHA `
+              --repo $env:GITHUB_REPOSITORY `
+              --prerelease `
+              --title $releaseTag `
+              --notes "Windows ARM64 build for Etcher $($packageJson.version). Built by $env:GITHUB_WORKFLOW run $env:GITHUB_RUN_ID."
+          }
+
+          $assetPaths = @($files | ForEach-Object { $_.FullName })
+          gh release upload $releaseTag @assetPaths --repo $env:GITHUB_REPOSITORY --clobber

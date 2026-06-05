@@ -17,17 +17,24 @@
 import { WebSocketServer } from 'ws';
 import type { Dictionary } from 'lodash';
 import { values } from 'lodash';
+import * as path from 'path';
 
 import type { MultiDestinationProgress } from 'etcher-sdk/build/multi-write';
 
 import { toJSON } from '../shared/errors';
 import { GENERAL_ERROR, SUCCESS } from '../shared/exit-codes';
 import type { WriteOptions } from './types/types';
-import { write, cleanup } from './child-writer';
-import { startScanning } from './scanner';
-import { getSourceMetadata } from './source-metadata';
 import type { DrivelistDrive } from '../shared/drive-constraints';
 import type { SourceMetadata } from '../shared/typings/source-selector';
+
+function includeSidecarDirectoryInDllSearchPath() {
+	if (process.platform !== 'win32') {
+		return;
+	}
+
+	const sidecarDir = path.dirname(process.execPath);
+	process.env.PATH = `${sidecarDir};${process.env.PATH ?? ''}`;
+}
 
 // Utility to parse --key=value arguments into process.env if not already set
 function injectEnvFromArgs() {
@@ -45,6 +52,7 @@ function injectEnvFromArgs() {
 
 // Inject env vars from arguments if not already present
 injectEnvFromArgs();
+includeSidecarDirectoryInDllSearchPath();
 
 console.log(
 	'Etcher child process started with the following environment variables:',
@@ -78,8 +86,11 @@ let emitSourceMetadata: (
 ) => void | undefined; // Record<string, never> means an empty object
 
 // Terminate the child process
-async function terminate(exitCode?: number) {
-	await cleanup(Date.now());
+async function terminate(exitCode?: number, cleanupBeforeExit = true) {
+	if (cleanupBeforeExit) {
+		const { cleanup } = await import('./child-writer');
+		await cleanup(Date.now());
+	}
 	process.nextTick(() => {
 		process.exit(exitCode || SUCCESS);
 	});
@@ -92,7 +103,7 @@ function setTerminateTimeout() {
 			console.log(
 				`no connections or heartbeat for ${ETCHER_TERMINATE_TIMEOUT} ms, terminating`,
 			);
-			terminate();
+			terminate(SUCCESS, false);
 		}, ETCHER_TERMINATE_TIMEOUT);
 	} else {
 		return null;
@@ -141,8 +152,9 @@ function setup(): Promise<EmitLog> {
 			 * @summary Handle `errors`
 			 */
 			async function handleError(error: Error) {
+				console.error(error);
 				emit('error', toJSON(error));
-				await terminate(GENERAL_ERROR);
+				await terminate(GENERAL_ERROR, false);
 			}
 
 			/**
@@ -168,6 +180,7 @@ function setup(): Promise<EmitLog> {
 			 */
 			const onWrite = async (options: WriteOptions) => {
 				log('write requested');
+				const { write, cleanup } = await import('./child-writer');
 
 				// Remove leftover tmp files older than 1 hour
 				cleanup(Date.now() - 60 * 60 * 1000);
@@ -197,6 +210,7 @@ function setup(): Promise<EmitLog> {
 				log('sourceMetadata requested');
 				const { selected, SourceType, auth } = JSON.parse(params);
 				try {
+					const { getSourceMetadata } = await import('./source-metadata');
 					const sourceMatadata = await getSourceMetadata(
 						selected,
 						SourceType,
@@ -206,6 +220,13 @@ function setup(): Promise<EmitLog> {
 				} catch (error: any) {
 					emitFail(error);
 				}
+			};
+
+			const onNativeModuleSmokeTest = async () => {
+				log('native module smoke test requested');
+				const { getUnmountDisk } = await import('etcher-sdk/build/lazy');
+				getUnmountDisk();
+				emit('nativeModuleSmokeTest', { mountutils: true });
 			};
 
 			// handle uncaught exceptions
@@ -239,8 +260,9 @@ function setup(): Promise<EmitLog> {
 				},
 
 				// start scanning for drives
-				scan: () => {
+				scan: async () => {
 					log('Scan requested');
+					const { startScanning } = await import('./scanner');
 					startScanning();
 				},
 
@@ -255,6 +277,8 @@ function setup(): Promise<EmitLog> {
 
 				// route `sourceMetadata` from client
 				sourceMetadata: async (params: any) => onSourceMetadata(params),
+
+				nativeModuleSmokeTest: async () => onNativeModuleSmokeTest(),
 			};
 
 			// message handler, parse and route messages coming on WS
