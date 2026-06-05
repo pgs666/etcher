@@ -67,6 +67,26 @@ function Assert-Exists {
 	}
 }
 
+function Assert-BinaryContainsAscii {
+	Param(
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][string]$Text
+	)
+
+	if (-not (Test-Path -LiteralPath $Path)) {
+		throw "Missing expected artifact: $Path"
+	}
+
+	$bytes = [System.IO.File]::ReadAllBytes($Path)
+	$content = [System.Text.Encoding]::ASCII.GetString($bytes)
+	if ($content.Contains($Text)) {
+		Write-Host "Verified binary contains '$Text': $Path"
+		return
+	}
+
+	throw "Expected binary to contain '$Text': $Path"
+}
+
 function Assert-Arm64PackagePeFiles {
 	Param(
 		[Parameter(Mandatory = $true)][string]$Path,
@@ -105,6 +125,10 @@ if ($null -eq $nativeModules -or $nativeModules.Count -eq 0) {
 }
 
 Assert-Arm64PackagePeFiles -Path $packageDir.FullName -Description 'packaged app'
+Assert-BinaryContainsAscii -Path $sidecarPath -Text "Couldn't clean the drive"
+Assert-BinaryContainsAscii -Path $sidecarPath -Text 'stdout:\n${error.stdout}'
+Assert-BinaryContainsAscii -Path $sidecarPath -Text 'stderr:\n${error.stderr}'
+Assert-BinaryContainsAscii -Path $sidecarPath -Text 'script:\n${error.script}'
 
 $previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
 $previousServerPort = $env:ETCHER_SERVER_PORT
