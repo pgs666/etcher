@@ -168,7 +168,7 @@ $setupExe = Join-Path $squirrelDir.FullName "balenaEtcher-$($packageJson.version
 $releasesFile = Join-Path $squirrelDir.FullName 'RELEASES'
 $fullNupkg = Get-ChildItem -Path $squirrelDir.FullName -File -Filter '*-full.nupkg' | Select-Object -First 1
 
-Assert-Exists -Path $setupExe
+Assert-PeMachine -Path $setupExe -ExpectedMachine 0x014C -Description 'Squirrel setup bootstrapper x86'
 Assert-Exists -Path $releasesFile
 if ($null -eq $fullNupkg) {
 	throw "Missing Squirrel full nupkg under $($squirrelDir.FullName)"
