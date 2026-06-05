@@ -5,6 +5,20 @@ on:
     branches: [main, master]
   push:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Upload verified Windows ARM64 distributables to the release
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: Release tag to publish
+        required: false
+        default: v2.1.6-arm64
+        type: string
+
+permissions:
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
@@ -158,3 +172,41 @@ jobs:
             out/make/windows-arm64-SHA256SUMS.txt
             out/make/windows-arm64-build-manifest.json
           if-no-files-found: error
+
+      - name: Publish Windows ARM64 release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $packageJson = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          $releaseTag = '${{ inputs.release_tag }}'
+          if ([string]::IsNullOrWhiteSpace($releaseTag)) {
+            $releaseTag = "v$($packageJson.version)-arm64"
+          }
+
+          $artifactRoot = (Resolve-Path out/make).Path
+          $files = Get-ChildItem -Path $artifactRoot -Recurse -File -Include '*.zip', '*Setup.exe', 'RELEASES', '*.nupkg', 'windows-arm64-SHA256SUMS.txt', 'windows-arm64-build-manifest.json' |
+            Sort-Object FullName
+
+          if ($null -eq $files -or $files.Count -eq 0) {
+            throw "No Windows ARM64 release files found under $artifactRoot"
+          }
+
+          $releaseExists = $true
+          gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $releaseExists = $false
+          }
+
+          if (-not $releaseExists) {
+            gh release create $releaseTag `
+              --target $env:GITHUB_SHA `
+              --repo $env:GITHUB_REPOSITORY `
+              --prerelease `
+              --title $releaseTag `
+              --notes "Windows ARM64 build for Etcher $($packageJson.version). Built by $env:GITHUB_WORKFLOW run $env:GITHUB_RUN_ID."
+          }
+
+          $assetPaths = @($files | ForEach-Object { $_.FullName })
+          gh release upload $releaseTag @assetPaths --repo $env:GITHUB_REPOSITORY --clobber

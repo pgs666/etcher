@@ -168,6 +168,23 @@ async function main() {
 		);
 		assertSourceMetadata(await metadata);
 
+		const nativeModuleSmokeTest = waitForMessage(
+			ws,
+			'nativeModuleSmokeTest',
+			5000,
+		);
+		send(ws, 'nativeModuleSmokeTest');
+		const nativeModuleSmokeTestPayload = parsePayload(
+			await nativeModuleSmokeTest,
+		);
+		if (nativeModuleSmokeTestPayload.mountutils !== true) {
+			throw new Error(
+				`Unexpected native module smoke test payload: ${JSON.stringify(
+					nativeModuleSmokeTestPayload,
+				)}`,
+			);
+		}
+
 		send(ws, 'scan');
 		await waitForNoError(ws, 2000);
 		send(ws, 'terminate');
@@ -193,7 +210,7 @@ async function main() {
 	}
 
 	console.log(
-		'Verified sidecar WebSocket, scan, source metadata, and terminate paths',
+		'Verified sidecar WebSocket, scan, source metadata, native modules, and terminate paths',
 	);
 }
 

@@ -83,6 +83,8 @@ function build(
 					...process.env,
 					npm_config_arch: arch,
 					npm_config_platform: platform,
+					npm_config_runtime: 'node',
+					npm_config_target: nativeModuleNodeVersion(platform, arch),
 				},
 			},
 		]);
@@ -130,6 +132,12 @@ function pkgNodeVersion(platform: string, arch: string): string {
 	// pkg's Windows ARM64 Node 20 base binary fails before the sidecar can start.
 	// Node 16 is still supported by pkg-fetch and starts cleanly there.
 	return platform === 'win32' && arch === 'arm64' ? 'node16' : 'node20';
+}
+
+function nativeModuleNodeVersion(platform: string, arch: string): string {
+	return platform === 'win32' && arch === 'arm64'
+		? '16.20.2'
+		: process.versions.node;
 }
 
 function copyArtifact(

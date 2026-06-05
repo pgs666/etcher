@@ -222,6 +222,13 @@ function setup(): Promise<EmitLog> {
 				}
 			};
 
+			const onNativeModuleSmokeTest = async () => {
+				log('native module smoke test requested');
+				const { getUnmountDisk } = await import('etcher-sdk/build/lazy');
+				getUnmountDisk();
+				emit('nativeModuleSmokeTest', { mountutils: true });
+			};
+
 			// handle uncaught exceptions
 			process.once('uncaughtException', handleError);
 
@@ -270,6 +277,8 @@ function setup(): Promise<EmitLog> {
 
 				// route `sourceMetadata` from client
 				sourceMetadata: async (params: any) => onSourceMetadata(params),
+
+				nativeModuleSmokeTest: async () => onNativeModuleSmokeTest(),
 			};
 
 			// message handler, parse and route messages coming on WS
