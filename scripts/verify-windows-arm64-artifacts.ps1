@@ -134,6 +134,7 @@ if ($null -eq $nativeModules -or $nativeModules.Count -eq 0) {
 }
 
 Assert-Arm64PackagePeFiles -Path $packageDir.FullName -Description 'packaged app'
+Assert-Arm64Pe -Path $lzmaPath
 Assert-SidecarDiagnostics -Path $sidecarPath
 
 $previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
@@ -182,6 +183,7 @@ Remove-Item -LiteralPath $nupkgZipPath -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath $fullNupkg.FullName -Destination $nupkgZipPath
 Expand-Archive -LiteralPath $nupkgZipPath -DestinationPath $nupkgExtractDir -Force
 Assert-Arm64PackagePeFiles -Path $nupkgExtractDir -Description 'Squirrel full nupkg'
+Assert-Arm64Pe -Path (Join-Path $nupkgExtractDir 'lib/net45/resources/liblzma.dll')
 Assert-SidecarDiagnostics -Path (Join-Path $nupkgExtractDir 'lib/net45/resources/etcher-util.exe')
 
 $zipFile = Get-ChildItem -Path out/make/zip/win32/arm64 -File -Filter '*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -193,6 +195,7 @@ $zipExtractDir = Join-Path $tempRoot 'etcher-arm64-zip'
 Remove-Item -LiteralPath $zipExtractDir -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zipFile.FullName -DestinationPath $zipExtractDir -Force
 Assert-Arm64PackagePeFiles -Path $zipExtractDir -Description 'zip distributable'
+Assert-Arm64Pe -Path (Join-Path $zipExtractDir 'resources/liblzma.dll')
 Assert-SidecarDiagnostics -Path (Join-Path $zipExtractDir 'resources/etcher-util.exe')
 
 Write-Host "Found distributable: $setupExe"
