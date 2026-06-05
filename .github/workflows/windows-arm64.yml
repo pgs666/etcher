@@ -57,6 +57,7 @@ jobs:
           npm i -D winusb-driver-generator --ignore-scripts
           node scripts/patch-pkg-fetch-node20-windows.js
           node scripts/patch-etcher-sdk-diskpart-logging.js
+          node scripts/verify-etcher-sdk-diskpart-logging.js
           vcpkg install liblzma:arm64-windows
           node scripts/patch-lzma-native-windows-arm64.js
           npm rebuild --foreground-scripts
