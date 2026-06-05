@@ -87,6 +87,15 @@ function Assert-BinaryContainsAscii {
 	throw "Expected binary to contain '$Text': $Path"
 }
 
+function Assert-SidecarDiagnostics {
+	Param([Parameter(Mandatory = $true)][string]$Path)
+
+	Assert-BinaryContainsAscii -Path $Path -Text "Couldn't clean the drive"
+	Assert-BinaryContainsAscii -Path $Path -Text 'stdout:\n${error.stdout}'
+	Assert-BinaryContainsAscii -Path $Path -Text 'stderr:\n${error.stderr}'
+	Assert-BinaryContainsAscii -Path $Path -Text 'script:\n${error.script}'
+}
+
 function Assert-Arm64PackagePeFiles {
 	Param(
 		[Parameter(Mandatory = $true)][string]$Path,
@@ -125,10 +134,7 @@ if ($null -eq $nativeModules -or $nativeModules.Count -eq 0) {
 }
 
 Assert-Arm64PackagePeFiles -Path $packageDir.FullName -Description 'packaged app'
-Assert-BinaryContainsAscii -Path $sidecarPath -Text "Couldn't clean the drive"
-Assert-BinaryContainsAscii -Path $sidecarPath -Text 'stdout:\n${error.stdout}'
-Assert-BinaryContainsAscii -Path $sidecarPath -Text 'stderr:\n${error.stderr}'
-Assert-BinaryContainsAscii -Path $sidecarPath -Text 'script:\n${error.script}'
+Assert-SidecarDiagnostics -Path $sidecarPath
 
 $previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
 $previousServerPort = $env:ETCHER_SERVER_PORT
@@ -181,6 +187,12 @@ $zipFile = Get-ChildItem -Path out/make/zip/win32/arm64 -File -Filter '*.zip' -E
 if ($null -eq $zipFile) {
 	throw 'Missing Windows ARM64 zip distributable'
 }
+
+$zipExtractDir = Join-Path $tempRoot 'etcher-arm64-zip'
+Remove-Item -LiteralPath $zipExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+Expand-Archive -LiteralPath $zipFile.FullName -DestinationPath $zipExtractDir -Force
+Assert-Arm64PackagePeFiles -Path $zipExtractDir -Description 'zip distributable'
+Assert-SidecarDiagnostics -Path (Join-Path $zipExtractDir 'resources/etcher-util.exe')
 
 Write-Host "Found distributable: $setupExe"
 Write-Host "Found distributable: $($zipFile.FullName)"
