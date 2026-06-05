@@ -17,7 +17,18 @@ const vcpkgInstalled = path
 
 let binding = fs.readFileSync(bindingPath, 'utf8');
 
-binding = binding.replace(
+function replaceOnce(value, needle, replacement) {
+	if (!value.includes(needle)) {
+		throw new Error(
+			`Unable to patch lzma-native binding.gyp; missing: ${needle}`,
+		);
+	}
+
+	return value.replace(needle, replacement);
+}
+
+binding = replaceOnce(
+	binding,
 	`"include_dirs" : [ "<(module_root_dir)\\\\deps\\\\include" ],
           "link_settings": {
             "libraries" : [ "-llzma" ],
@@ -52,7 +63,8 @@ binding = binding.replace(
           ]`,
 );
 
-binding = binding.replace(
+binding = replaceOnce(
+	binding,
 	`[ 'target_arch=="x64"', {
               'variables': {
                 "arch_lib_path" : 'bin_x86-64',
@@ -86,12 +98,14 @@ binding = binding.replace(
             } ]`,
 );
 
-binding = binding.replace(
+binding = replaceOnce(
+	binding,
 	`'action': ['lib.exe -def:"<(module_root_dir)/deps/doc/liblzma.def" -out:"<(module_root_dir)/deps/<(arch_lib_path)/lzma.lib" -machine:<(arch_lib_code)']`,
 	`'action': ['cmd.exe /d /s /c "if \\"<(arch_lib_code)\\"==\\"arm64\\" ( echo Using vcpkg liblzma import library ) else ( lib.exe -def:\\"<(module_root_dir)/deps/doc/liblzma.def\\" -out:\\"<(module_root_dir)/deps/<(arch_lib_path)/lzma.lib\\" -machine:<(arch_lib_code) )"']`,
 );
 
-binding = binding.replace(
+binding = replaceOnce(
+	binding,
 	`'inputs': ['deps/<(arch_lib_path)/liblzma.dll'],
               'outputs': ['<(dlldir)/liblzma.dll'],
               'action': ['mkdir <(dlldir) > nul 2>&1 & copy "<(module_root_dir)/deps/<(arch_lib_path)/liblzma.dll" <(dlldir)/liblzma.dll']`,
@@ -101,3 +115,4 @@ binding = binding.replace(
 );
 
 fs.writeFileSync(bindingPath, binding);
+console.log('patched lzma-native Windows ARM64 binding.gyp');
