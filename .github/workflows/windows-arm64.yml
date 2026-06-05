@@ -87,6 +87,10 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke-windows-arm64-app.ps1
 
+      - name: Smoke test Windows ARM64 installer
+        shell: pwsh
+        run: ./scripts/smoke-windows-arm64-installer.ps1
+
       - name: Verify packaged icon assets
         shell: bash
         run: node scripts/verify-packaged-icon-assets.js
