@@ -76,10 +76,22 @@ if ($null -eq $zipFile) {
 	throw 'Missing Windows ARM64 zip distributable'
 }
 
+$nupkgFile = Get-ChildItem -Path out/make/squirrel.windows/arm64 -File -Filter '*-full.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($null -eq $nupkgFile) {
+	throw 'Missing Windows ARM64 Squirrel full nupkg'
+}
+
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $zipExtractDir = Join-Path $tempRoot 'etcher-arm64-app-smoke-zip'
 Remove-Item -LiteralPath $zipExtractDir -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zipFile.FullName -DestinationPath $zipExtractDir -Force
+
+$nupkgZipPath = Join-Path $tempRoot 'etcher-arm64-app-smoke-nupkg.zip'
+$nupkgExtractDir = Join-Path $tempRoot 'etcher-arm64-app-smoke-nupkg'
+Remove-Item -LiteralPath $nupkgZipPath -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $nupkgExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item -LiteralPath $nupkgFile.FullName -Destination $nupkgZipPath
+Expand-Archive -LiteralPath $nupkgZipPath -DestinationPath $nupkgExtractDir -Force
 
 $previousNoSpawnUtil = $env:ETCHER_NO_SPAWN_UTIL
 $previousElectronLogging = $env:ELECTRON_ENABLE_LOGGING
@@ -92,6 +104,7 @@ try {
 
 	Test-PackagedApp -PackagePath $packageDir.FullName -Label 'packaged'
 	Test-PackagedApp -PackagePath $zipExtractDir -Label 'zip distributable'
+	Test-PackagedApp -PackagePath (Join-Path $nupkgExtractDir 'lib/net45') -Label 'squirrel full nupkg'
 } finally {
 	$env:ETCHER_NO_SPAWN_UTIL = $previousNoSpawnUtil
 	$env:ELECTRON_ENABLE_LOGGING = $previousElectronLogging
