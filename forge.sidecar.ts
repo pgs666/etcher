@@ -76,9 +76,16 @@ function build(
 		// It's coming from etcher-sdk, a fix has been upstreamed but to use
 		// the latest etcher-sdk we need to upgrade axios at the same time.
 		commands.push([
-			'npm',
-			['rebuild', 'mountutils'],
+			'npx',
+			[
+				'node-gyp',
+				'rebuild',
+				`--target=${nativeModuleNodeVersion(platform, arch)}`,
+				`--arch=${arch}`,
+				`--platform=${platform}`,
+			],
 			{
+				cwd: path.resolve('node_modules', 'mountutils'),
 				env: {
 					...process.env,
 					npm_config_arch: arch,

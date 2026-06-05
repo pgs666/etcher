@@ -69,7 +69,7 @@ function waitForMessage(ws, type, timeoutMs) {
 			if (message.type === 'error' || message.type === 'fail') {
 				clearTimeout(timeout);
 				ws.off('message', onMessage);
-				reject(new Error(`${message.type}: ${message.payload}`));
+				reject(new Error(`${message.type}: ${JSON.stringify(message.payload)}`));
 				return;
 			}
 
@@ -189,6 +189,10 @@ async function main() {
 		await waitForNoError(ws, 2000);
 		send(ws, 'terminate');
 	} catch (error) {
+		console.log('Sidecar stdout tail:');
+		console.log(tail(stdout));
+		console.log('Sidecar stderr tail:');
+		console.log(tail(stderr));
 		child.kill();
 		throw error;
 	} finally {
