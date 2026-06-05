@@ -79,8 +79,8 @@ function Assert-Arm64PackagePeFiles {
 	}
 
 	foreach ($file in ($peFiles | Sort-Object FullName -Unique)) {
-		if ($file.Name -eq 'Squirrel.exe') {
-			Assert-PeMachine -Path $file.FullName -ExpectedMachine 0x014C -Description "$Description Squirrel update helper x86"
+		if ($file.Name -eq 'Squirrel.exe' -or $file.Name -like '*_ExecutionStub.exe') {
+			Assert-PeMachine -Path $file.FullName -ExpectedMachine 0x014C -Description "$Description Squirrel helper x86"
 			continue
 		}
 
