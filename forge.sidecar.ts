@@ -135,16 +135,12 @@ function pkgPlatform(platform: string): string {
 	return platform;
 }
 
-function pkgNodeVersion(platform: string, arch: string): string {
-	// pkg's Windows ARM64 Node 20 base binary fails before the sidecar can start.
-	// Node 16 is still supported by pkg-fetch and starts cleanly there.
-	return platform === 'win32' && arch === 'arm64' ? 'node16' : 'node20';
+function pkgNodeVersion(_platform: string, _arch: string): string {
+	return 'node20';
 }
 
-function nativeModuleNodeVersion(platform: string, arch: string): string {
-	return platform === 'win32' && arch === 'arm64'
-		? '16.20.2'
-		: process.versions.node;
+function nativeModuleNodeVersion(_platform: string, _arch: string): string {
+	return process.versions.node;
 }
 
 function copyArtifact(
