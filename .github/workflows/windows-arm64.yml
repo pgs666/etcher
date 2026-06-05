@@ -79,6 +79,10 @@ jobs:
         shell: bash
         run: node scripts/smoke-windows-arm64-sidecar.js
 
+      - name: Smoke test Windows ARM64 write diagnostics
+        shell: bash
+        run: node scripts/smoke-windows-arm64-write-diagnostics.js
+
       - name: Smoke test Windows ARM64 app
         shell: pwsh
         run: ./scripts/smoke-windows-arm64-app.ps1
