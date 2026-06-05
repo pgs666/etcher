@@ -56,8 +56,8 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          npm ci --ignore-scripts
-          npm i -D winusb-driver-generator --ignore-scripts
+          npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+          npm i -D winusb-driver-generator --ignore-scripts --prefer-offline --no-audit --no-fund
           node scripts/patch-pkg-fetch-node20-windows.js
           node scripts/patch-etcher-sdk-diskpart-logging.js
           node scripts/verify-etcher-sdk-diskpart-logging.js
