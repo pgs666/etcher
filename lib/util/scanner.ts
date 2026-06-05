@@ -1,5 +1,7 @@
 import { scanner as driveScanner } from './drive-scanner';
-import * as sdk from 'etcher-sdk';
+import { BlockDevice } from 'etcher-sdk/build/source-destination/block-device';
+import { DriverlessDevice } from 'etcher-sdk/build/source-destination/driverless';
+import { UsbbootDrive } from 'etcher-sdk/build/source-destination/usbboot';
 import type { DrivelistDrive } from '../shared/drive-constraints';
 import outdent from 'outdent';
 import type { Dictionary } from 'lodash';
@@ -63,16 +65,13 @@ async function driveIsAllowed(drive: {
 	);
 }
 
-type Drive =
-	| sdk.sourceDestination.BlockDevice
-	| sdk.sourceDestination.UsbbootDrive
-	| sdk.sourceDestination.DriverlessDevice;
+type Drive = BlockDevice | UsbbootDrive | DriverlessDevice;
 
 function prepareDrive(drive: Drive) {
-	if (drive instanceof sdk.sourceDestination.BlockDevice) {
+	if (drive instanceof BlockDevice) {
 		// @ts-ignore (BlockDevice.drive is private)
 		return drive.drive;
-	} else if (drive instanceof sdk.sourceDestination.UsbbootDrive) {
+	} else if (drive instanceof UsbbootDrive) {
 		// This is a workaround etcher expecting a device string and a size
 
 		// @ts-ignore
@@ -86,7 +85,7 @@ function prepareDrive(drive: Drive) {
 			updateDriveProgress(drive, progress);
 		});
 		return drive;
-	} else if (drive instanceof sdk.sourceDestination.DriverlessDevice) {
+	} else if (drive instanceof DriverlessDevice) {
 		const description =
 			COMPUTE_MODULE_DESCRIPTIONS[
 				drive.deviceDescriptor.idProduct.toString()
@@ -138,10 +137,7 @@ function usbIdToString(id: number): string {
 	return `0x${padStart(id.toString(USB_ID_RADIX), USB_ID_LENGTH, '0')}`;
 }
 
-function updateDriveProgress(
-	drive: sdk.sourceDestination.UsbbootDrive,
-	progress: number,
-) {
+function updateDriveProgress(drive: UsbbootDrive, progress: number) {
 	const drives = getDrives();
 
 	// @ts-ignore

@@ -55,6 +55,7 @@ function addWebpackDefine(
 
 function build(
 	sourcesDir: string,
+	platform: string,
 	buildForArchs: string,
 	binDir: string,
 	binName: string,
@@ -74,7 +75,26 @@ function build(
 		// FIXME: rebuilding mountutils shouldn't be necessary, but it is.
 		// It's coming from etcher-sdk, a fix has been upstreamed but to use
 		// the latest etcher-sdk we need to upgrade axios at the same time.
-		commands.push(['npm', ['rebuild', 'mountutils', `--arch=${arch}`]]);
+		commands.push([
+			'npx',
+			[
+				'node-gyp',
+				'rebuild',
+				`--target=${nativeModuleNodeVersion()}`,
+				`--arch=${arch}`,
+				`--platform=${platform}`,
+			],
+			{
+				cwd: path.resolve('node_modules', 'mountutils'),
+				env: {
+					...process.env,
+					npm_config_arch: arch,
+					npm_config_platform: platform,
+					npm_config_runtime: 'node',
+					npm_config_target: nativeModuleNodeVersion(),
+				},
+			},
+		]);
 
 		commands.push([
 			'pkg',
@@ -87,10 +107,10 @@ function build(
 				'--public',
 				'--public-packages',
 				'"*"',
-				// always build for host platform and node version
+				// Always build for the Forge target platform and Node version.
 				// https://github.com/vercel/pkg-fetch/releases
 				'--target',
-				`node20-${arch}`,
+				`${pkgNodeVersion()}-${pkgPlatform(platform)}-${arch}`,
 				'--output',
 				binPath,
 			],
@@ -103,8 +123,29 @@ function build(
 	});
 }
 
+function pkgPlatform(platform: string): string {
+	if (platform === 'win32') {
+		return 'win';
+	}
+
+	if (platform === 'darwin') {
+		return 'macos';
+	}
+
+	return platform;
+}
+
+function pkgNodeVersion(): string {
+	return 'node20';
+}
+
+function nativeModuleNodeVersion(): string {
+	return process.versions.node;
+}
+
 function copyArtifact(
 	buildPath: string,
+	platform: string,
 	arch: string,
 	binDir: string,
 	binName: string,
@@ -121,6 +162,21 @@ function copyArtifact(
 	const dest = path.resolve(resourcesPath, path.basename(binPath));
 	log(`copying '${binPath}' to '${dest}'`);
 	fs.copyFileSync(binPath, dest);
+
+	if (platform === 'win32' && arch === 'arm64') {
+		const vcpkgRoot = process.env.VCPKG_INSTALLATION_ROOT || 'C:\\vcpkg';
+		const vcpkgTriplet = process.env.VCPKG_DEFAULT_TRIPLET || 'arm64-windows';
+		const lzmaDll = path.join(
+			vcpkgRoot,
+			'installed',
+			vcpkgTriplet,
+			'bin',
+			'liblzma.dll',
+		);
+		const lzmaDest = path.resolve(resourcesPath, 'liblzma.dll');
+		log(`copying '${lzmaDll}' to '${lzmaDest}'`);
+		fs.copyFileSync(lzmaDll, lzmaDest);
+	}
 }
 
 export class SidecarPlugin extends PluginBase<void> {
@@ -146,7 +202,7 @@ export class SidecarPlugin extends PluginBase<void> {
 			},
 			generateAssets: async (_config, platform, arch) => {
 				log('generateAssets', { platform, arch });
-				build(SRC_DIR, arch, BIN_DIR, BIN_NAME);
+				build(SRC_DIR, platform, arch, BIN_DIR, BIN_NAME);
 			},
 			packageAfterCopy: async (
 				_config,
@@ -161,7 +217,7 @@ export class SidecarPlugin extends PluginBase<void> {
 					platform,
 					arch,
 				});
-				copyArtifact(buildPath, arch, BIN_DIR, BIN_NAME);
+				copyArtifact(buildPath, platform, arch, BIN_DIR, BIN_NAME);
 			},
 		};
 	}

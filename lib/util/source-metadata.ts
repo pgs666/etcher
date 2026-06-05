@@ -1,11 +1,13 @@
 /** Get metadata for a source */
 
-import { sourceDestination } from 'etcher-sdk';
 import { replaceWindowsNetworkDriveLetter } from '../gui/app/os/windows-network-drives';
 import type { AxiosRequestConfig } from 'axios';
 import axios from 'axios';
 import { isJson } from '../shared/utils';
 import * as path from 'path';
+import { File } from 'etcher-sdk/build/source-destination/file';
+import { Http } from 'etcher-sdk/build/source-destination/http';
+import type { SourceDestination } from 'etcher-sdk/build/source-destination/source-destination';
 import type {
 	SourceMetadata,
 	Authentication,
@@ -31,23 +33,23 @@ async function createSource(
 
 	if (isJson(decodeURIComponent(selected))) {
 		const config: AxiosRequestConfig = JSON.parse(decodeURIComponent(selected));
-		return new sourceDestination.Http({
+		return new Http({
 			url: config.url!,
 			axiosInstance: axios.create(omit(config, ['url'])),
 		});
 	}
 
 	if (SourceType === 'File') {
-		return new sourceDestination.File({
+		return new File({
 			path: selected,
 		});
 	}
 
-	return new sourceDestination.Http({ url: selected, auth });
+	return new Http({ url: selected, auth });
 }
 
 async function getMetadata(
-	source: sourceDestination.SourceDestination,
+	source: SourceDestination,
 	selected: string | DrivelistDrive,
 ) {
 	const metadata = (await source.getMetadata()) as SourceMetadata;
