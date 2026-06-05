@@ -96,6 +96,7 @@ jobs:
         run: |
           $artifactRoot = (Resolve-Path out/make).Path
           $checksumFile = Join-Path $artifactRoot 'windows-arm64-SHA256SUMS.txt'
+          $manifestFile = Join-Path $artifactRoot 'windows-arm64-build-manifest.json'
           $files = Get-ChildItem -Path $artifactRoot -Recurse -File -Include '*.zip', '*Setup.exe', 'RELEASES', '*.nupkg' |
             Sort-Object FullName
 
@@ -112,6 +113,35 @@ jobs:
           Set-Content -LiteralPath $checksumFile -Value $lines -Encoding ascii
           Get-Content -LiteralPath $checksumFile
 
+          $packageJson = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          $manifest = [ordered]@{
+            workflow = $env:GITHUB_WORKFLOW
+            runId = $env:GITHUB_RUN_ID
+            runAttempt = $env:GITHUB_RUN_ATTEMPT
+            eventName = $env:GITHUB_EVENT_NAME
+            repository = $env:GITHUB_REPOSITORY
+            ref = $env:GITHUB_REF
+            sha = $env:GITHUB_SHA
+            productName = $packageJson.productName
+            version = $packageJson.version
+            platform = 'win32'
+            arch = 'arm64'
+            node = (node --version)
+            npm = (npm --version)
+            electron = $packageJson.devDependencies.electron
+            generatedAt = (Get-Date).ToUniversalTime().ToString('o')
+            files = @($lines | ForEach-Object {
+              $parts = $_ -split '\s+', 2
+              [ordered]@{
+                sha256 = $parts[0]
+                path = $parts[1]
+              }
+            })
+          }
+
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestFile -Encoding ascii
+          Get-Content -LiteralPath $manifestFile
+
       - name: Upload Windows ARM64 artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -122,4 +152,5 @@ jobs:
             out/make/**/RELEASES
             out/make/**/*.nupkg
             out/make/windows-arm64-SHA256SUMS.txt
+            out/make/windows-arm64-build-manifest.json
           if-no-files-found: error
