@@ -182,6 +182,7 @@ Remove-Item -LiteralPath $nupkgZipPath -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath $fullNupkg.FullName -Destination $nupkgZipPath
 Expand-Archive -LiteralPath $nupkgZipPath -DestinationPath $nupkgExtractDir -Force
 Assert-Arm64PackagePeFiles -Path $nupkgExtractDir -Description 'Squirrel full nupkg'
+Assert-SidecarDiagnostics -Path (Join-Path $nupkgExtractDir 'lib/net45/resources/etcher-util.exe')
 
 $zipFile = Get-ChildItem -Path out/make/zip/win32/arm64 -File -Filter '*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($null -eq $zipFile) {
