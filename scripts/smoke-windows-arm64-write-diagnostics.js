@@ -54,7 +54,7 @@ function send(ws, type, payload) {
 	ws.send(JSON.stringify({ type, payload }));
 }
 
-function waitForMessage(ws, type, timeoutMs) {
+function waitForMessage(ws, type, timeoutMs, onExpectedFail) {
 	return new Promise((resolve, reject) => {
 		const timeout = setTimeout(() => {
 			ws.off('message', onMessage);
@@ -64,6 +64,11 @@ function waitForMessage(ws, type, timeoutMs) {
 		const onMessage = (data) => {
 			const message = JSON.parse(data.toString());
 			if (message.type === 'error' || message.type === 'fail') {
+				if (message.type === 'fail' && onExpectedFail) {
+					onExpectedFail(message.payload);
+					return;
+				}
+
 				clearTimeout(timeout);
 				ws.off('message', onMessage);
 				reject(new Error(`${message.type}: ${JSON.stringify(message.payload)}`));
@@ -87,13 +92,13 @@ function parsePayload(message) {
 		: message.payload;
 }
 
-function assertDiagnosticError(payload) {
-	const errors = payload.results && payload.results.errors;
-	if (!Array.isArray(errors) || errors.length !== 1) {
-		throw new Error(`Unexpected write error payload: ${JSON.stringify(payload)}`);
-	}
+function getDiagnosticMessage(payload) {
+	const error = payload.error || payload;
+	return error.message || '';
+}
 
-	const message = errors[0].message || '';
+function assertDiagnosticError(payload) {
+	const message = getDiagnosticMessage(payload);
 	for (const snippet of [
 		"Couldn't clean the drive",
 		'select disk 99999',
@@ -120,6 +125,7 @@ async function main() {
 
 	let stdout = '';
 	let stderr = '';
+	let failPayload;
 	child.stdout.on('data', (chunk) => {
 		stdout += chunk.toString();
 	});
@@ -136,7 +142,9 @@ async function main() {
 		await ready;
 		send(ws, 'heartbeat');
 
-		const done = waitForMessage(ws, 'done', 30000);
+		const done = waitForMessage(ws, 'done', 30000, (payload) => {
+			failPayload = payload;
+		});
 		send(ws, 'write', {
 			SourceType: 'File',
 			autoBlockmapping: true,
@@ -166,7 +174,18 @@ async function main() {
 				},
 			],
 		});
-		assertDiagnosticError(parsePayload(await done));
+		const donePayload = parsePayload(await done);
+		const errors = donePayload.results && donePayload.results.errors;
+		if (!Array.isArray(errors) || errors.length !== 1) {
+			throw new Error(
+				`Unexpected write done payload: ${JSON.stringify(donePayload)}`,
+			);
+		}
+		if (failPayload === undefined) {
+			throw new Error('Missing expected fail event before write done event');
+		}
+		assertDiagnosticError(failPayload);
+		assertDiagnosticError(errors[0]);
 	} catch (error) {
 		child.kill();
 		throw error;
