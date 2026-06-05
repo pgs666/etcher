@@ -16,6 +16,7 @@ $appStderrPath = Join-Path $tempRoot 'balenaEtcher-installed.stderr.log'
 $installRoot = Join-Path $env:LOCALAPPDATA 'balena_etcher'
 $installedAppDir = Join-Path $installRoot "app-$($packageJson.version)"
 $installedAppPath = Join-Path $installedAppDir 'balenaEtcher.exe'
+$installedSidecarPath = Join-Path $installedAppDir 'resources/etcher-util.exe'
 $updateExePath = Join-Path $installRoot 'Update.exe'
 $appProcess = $null
 
@@ -62,6 +63,46 @@ try {
 	if (-not (Test-Path -LiteralPath $installedAppPath)) {
 		Get-ChildItem -Path $installRoot -Recurse -Force -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
 		throw "Installer did not create expected app executable: $installedAppPath"
+	}
+
+	if (-not (Test-Path -LiteralPath $installedSidecarPath)) {
+		Get-ChildItem -Path $installedAppDir -Recurse -Force -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+		throw "Installer did not create expected sidecar executable: $installedSidecarPath"
+	}
+
+	$previousTerminateTimeout = $env:ETCHER_TERMINATE_TIMEOUT
+	$previousServerPort = $env:ETCHER_SERVER_PORT
+	try {
+		$env:ETCHER_TERMINATE_TIMEOUT = '1000'
+		$env:ETCHER_SERVER_PORT = '45679'
+		$sidecarStdoutPath = Join-Path $tempRoot 'balenaEtcher-installed-sidecar.stdout.log'
+		$sidecarStderrPath = Join-Path $tempRoot 'balenaEtcher-installed-sidecar.stderr.log'
+		$sidecarProcess = Start-Process `
+			-FilePath $installedSidecarPath `
+			-PassThru `
+			-NoNewWindow `
+			-RedirectStandardOutput $sidecarStdoutPath `
+			-RedirectStandardError $sidecarStderrPath
+		if (-not $sidecarProcess.WaitForExit(30000)) {
+			$sidecarProcess.Kill()
+			$sidecarProcess.WaitForExit()
+			Write-Host 'Installed sidecar stdout tail:'
+			Get-Content -LiteralPath $sidecarStdoutPath -Tail 80 -ErrorAction SilentlyContinue
+			Write-Host 'Installed sidecar stderr tail:'
+			Get-Content -LiteralPath $sidecarStderrPath -Tail 80 -ErrorAction SilentlyContinue
+			throw 'Installed sidecar did not exit within 30 seconds'
+		}
+		if ($sidecarProcess.ExitCode -ne 0) {
+			Write-Host 'Installed sidecar stdout tail:'
+			Get-Content -LiteralPath $sidecarStdoutPath -Tail 80 -ErrorAction SilentlyContinue
+			Write-Host 'Installed sidecar stderr tail:'
+			Get-Content -LiteralPath $sidecarStderrPath -Tail 80 -ErrorAction SilentlyContinue
+			throw "Installed sidecar exited with code $($sidecarProcess.ExitCode)"
+		}
+		Write-Host 'Verified installed sidecar starts and exits cleanly'
+	} finally {
+		$env:ETCHER_TERMINATE_TIMEOUT = $previousTerminateTimeout
+		$env:ETCHER_SERVER_PORT = $previousServerPort
 	}
 
 	$previousNoSpawnUtil = $env:ETCHER_NO_SPAWN_UTIL
