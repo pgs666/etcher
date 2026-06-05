@@ -96,6 +96,39 @@ function Assert-SidecarDiagnostics {
 	Assert-BinaryContainsAscii -Path $Path -Text 'script:\n${error.script}'
 }
 
+function Assert-SquirrelReleaseEntry {
+	Param(
+		[Parameter(Mandatory = $true)][string]$ReleasesPath,
+		[Parameter(Mandatory = $true)][System.IO.FileInfo]$PackageFile
+	)
+
+	$entry = Get-Content -LiteralPath $ReleasesPath |
+		Where-Object { ($_ -split '\s+')[1] -eq $PackageFile.Name } |
+		Select-Object -First 1
+
+	if (-not $entry) {
+		throw "Missing RELEASES entry for $($PackageFile.Name)"
+	}
+
+	$parts = $entry -split '\s+'
+	if ($parts.Count -ne 3) {
+		throw "Invalid RELEASES entry for $($PackageFile.Name): $entry"
+	}
+
+	$expectedSha1 = (Get-FileHash -Algorithm SHA1 -LiteralPath $PackageFile.FullName).Hash.ToLowerInvariant()
+	$actualSha1 = $parts[0].ToLowerInvariant()
+	if ($actualSha1 -ne $expectedSha1) {
+		throw "RELEASES SHA1 mismatch for $($PackageFile.Name): expected $expectedSha1, got $actualSha1"
+	}
+
+	$actualSize = [Int64]$parts[2]
+	if ($actualSize -ne $PackageFile.Length) {
+		throw "RELEASES size mismatch for $($PackageFile.Name): expected $($PackageFile.Length), got $actualSize"
+	}
+
+	Write-Host "Verified Squirrel RELEASES entry: $($PackageFile.Name)"
+}
+
 function Assert-Arm64PackagePeFiles {
 	Param(
 		[Parameter(Mandatory = $true)][string]$Path,
@@ -174,6 +207,7 @@ Assert-Exists -Path $releasesFile
 if ($null -eq $fullNupkg) {
 	throw "Missing Squirrel full nupkg under $($squirrelDir.FullName)"
 }
+Assert-SquirrelReleaseEntry -ReleasesPath $releasesFile -PackageFile $fullNupkg
 
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $nupkgExtractDir = Join-Path $tempRoot 'etcher-arm64-full-nupkg'
