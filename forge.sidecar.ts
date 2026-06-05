@@ -80,7 +80,7 @@ function build(
 			[
 				'node-gyp',
 				'rebuild',
-				`--target=${nativeModuleNodeVersion(platform, arch)}`,
+				`--target=${nativeModuleNodeVersion()}`,
 				`--arch=${arch}`,
 				`--platform=${platform}`,
 			],
@@ -91,7 +91,7 @@ function build(
 					npm_config_arch: arch,
 					npm_config_platform: platform,
 					npm_config_runtime: 'node',
-					npm_config_target: nativeModuleNodeVersion(platform, arch),
+					npm_config_target: nativeModuleNodeVersion(),
 				},
 			},
 		]);
@@ -110,7 +110,7 @@ function build(
 				// Always build for the Forge target platform and Node version.
 				// https://github.com/vercel/pkg-fetch/releases
 				'--target',
-				`${pkgNodeVersion(platform, arch)}-${pkgPlatform(platform)}-${arch}`,
+				`${pkgNodeVersion()}-${pkgPlatform(platform)}-${arch}`,
 				'--output',
 				binPath,
 			],
@@ -135,11 +135,11 @@ function pkgPlatform(platform: string): string {
 	return platform;
 }
 
-function pkgNodeVersion(_platform: string, _arch: string): string {
+function pkgNodeVersion(): string {
 	return 'node20';
 }
 
-function nativeModuleNodeVersion(_platform: string, _arch: string): string {
+function nativeModuleNodeVersion(): string {
 	return process.versions.node;
 }
 
